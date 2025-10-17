@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:suiviexpress_app/data/services/token_storage.dart';
 import '../../../data/services/auth_service.dart';
-import '../home/home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -23,18 +24,31 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => loading = true);
 
-    try {
-      final response = await _authService.login(usernameOrEmail, password, rememberMe);
-      // Navigate to home page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomePage(username: response.username)),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login failed: $e")));
-    } finally {
-      setState(() => loading = false);
-    }
+
+  try {
+    final response = await _authService.login(usernameOrEmail, password, rememberMe);
+
+    final token = response.token;
+    Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+
+    // Example payload: {sub: "123", username: "lucifer", role: "ADMIN"}
+    final userId = decodedToken['userId']?.toString() ?? '';
+    final username = decodedToken['sub'] ?? '';
+    final role = decodedToken['role'] ?? '';
+    print( "userId :" + userId +"\n" + " " + "username :" + username + "\n" + " " + "role :" +role  );
+
+    // ✅ Store token and decoded info
+    await TokenStorage.saveAuthData(token, username, role, userId);
+
+    // Navigate to home
+Navigator.pushReplacementNamed(context, '/home');
+  } catch (e) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text("Login failed: $e")));
+  } finally {
+    setState(() => loading = false);
+  }
+
   }
 
   @override

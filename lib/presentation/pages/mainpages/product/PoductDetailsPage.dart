@@ -11,11 +11,13 @@ class ProductDetailsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text("Product Details"    ,style: TextStyle(color: Colors.white), // <-- white text
-),
+        title: const Text(
+          "Product Details",
+          style: TextStyle(color: Colors.white), // <-- white text
+        ),
         backgroundColor: Colors.indigo,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -53,8 +55,7 @@ class ProductDetailsPage extends StatelessWidget {
             // Product Name
             Text(
               product.name,
-              style: const TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
 
@@ -90,24 +91,24 @@ class ProductDetailsPage extends StatelessWidget {
             // Price & Discount
             Row(
               children: [
-                Text(
-                  "\$${product.price.toStringAsFixed(2)}",
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo),
-                ),
-                if (product.discount > 0) ...[
-                  const SizedBox(width: 8),
+                if (product.discount > 0)
                   Text(
-                    "-\$${product.discount.toStringAsFixed(2)}",
+                    "\$${product.price.toStringAsFixed(2)}",
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
+                      color: Colors.grey,
+                      decoration: TextDecoration.lineThrough,
                     ),
                   ),
-                ],
+                if (product.discount > 0) const SizedBox(width: 8),
+                Text(
+                  "\$${(product.price - product.discount).toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -127,7 +128,8 @@ class ProductDetailsPage extends StatelessWidget {
             // Description
             Card(
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 2,
               color: Colors.white,
               child: Padding(
@@ -138,7 +140,9 @@ class ProductDetailsPage extends StatelessWidget {
                     const Text(
                       "Description",
                       style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -172,12 +176,16 @@ class ProductDetailsPage extends StatelessWidget {
             backgroundColor: Colors.indigo,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           child: const Text(
             "Add to Cart",
             style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.white,
+            ),
           ),
         ),
       ),

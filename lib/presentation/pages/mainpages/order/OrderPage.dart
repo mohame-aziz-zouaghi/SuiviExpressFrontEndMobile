@@ -14,13 +14,18 @@ class _OrderPageState extends State<OrderPage> {
 
   @override
   Widget build(BuildContext context) {
+    double totalPrice =
+        quantity * (widget.product.price - widget.product.discount);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Order Product",    style: TextStyle(color: Colors.white), // <-- white text
-),
+        title: const Text(
+          "Order Product",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.indigo,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back,color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -29,13 +34,98 @@ class _OrderPageState extends State<OrderPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.product.name,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.bold)),
+            // Product Info Card
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Product Image
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        widget.product.thumbnailUrl,
+                        height: 100,
+                        width: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 100,
+                          width: 100,
+                          color: Colors.indigo.shade100,
+                          child: const Icon(Icons.image, size: 40),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.product.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text("Brand: ${widget.product.brand}"),
+                          Text("Category: ${widget.product.category}"),
+                          const SizedBox(height: 4),
+// Price & Discount in Order Page
+Row(
+  children: [
+    if (widget.product.discount > 0)
+      Text(
+        "\$${widget.product.price.toStringAsFixed(2)}",
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.grey,
+          decoration: TextDecoration.lineThrough,
+        ),
+      ),
+    if (widget.product.discount > 0) const SizedBox(width: 8),
+    Text(
+      "  \$${(widget.product.price - widget.product.discount).toStringAsFixed(2)}",
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        color: Colors.indigo,
+      ),
+    ),
+  ],
+),
+
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
-            Text("Available Stock: ${widget.product.stockQuantity}",
-                style: const TextStyle(fontSize: 16)),
+
+            // Description
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  widget.product.description,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
+
+            // Quantity Selector
             Row(
               children: [
                 const Text("Quantity:", style: TextStyle(fontSize: 16)),
@@ -53,31 +143,48 @@ class _OrderPageState extends State<OrderPage> {
                       : null,
                   icon: const Icon(Icons.add),
                 ),
+                const Spacer(),
+                Text(
+                  "Total: \$${totalPrice.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
             const Spacer(),
+
+            // Order Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: quantity > 0
                     ? () {
-                        // Navigate to cart page or add logic to add to cart
+                        // Add logic to add to cart
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                              content: Text(
-                                  "Added $quantity x ${widget.product.name} to cart")),
+                            content: Text(
+                              "Added $quantity x ${widget.product.name} to cart",
+                            ),
+                          ),
                         );
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
+                  backgroundColor: Colors.indigo,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 child: const Text(
                   "Confirm Order",
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16,color: Colors.white),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

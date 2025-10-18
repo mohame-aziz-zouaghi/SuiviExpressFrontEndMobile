@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:suiviexpress_app/presentation/pages/auth/login_page.dart';
 import 'package:suiviexpress_app/presentation/pages/auth/register_page.dart';
-import 'package:suiviexpress_app/presentation/pages/mainpages/home/main_home_page.dart'; // new main app with bottom bar
+import 'package:suiviexpress_app/presentation/pages/mainpages/home/main_home_page.dart';
+import 'package:suiviexpress_app/presentation/pages/auth/splash_page.dart'; // Add this
 
 void main() {
   runApp(const SuiviExpressApp());
@@ -19,12 +20,12 @@ class SuiviExpressApp extends StatelessWidget {
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: Colors.white,
       ),
-      // Start on Login Page
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginPage(),
+        '/': (context) => const SplashPage(), // <-- Start from splash
         '/register': (context) => const RegisterPage(),
-        '/home': (context) => const MainHomePage(), // new main page with bottom nav
+        '/home': (context) => const MainHomePage(),
+        '/login': (context) => const LoginPage(),
       },
     );
   }

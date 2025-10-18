@@ -4,7 +4,9 @@ import 'package:suiviexpress_app/data/services/product_service.dart';
 import 'package:suiviexpress_app/presentation/pages/mainpages/product/PoductDetailsPage.dart';
 
 class ProductsPage extends StatefulWidget {
-  const ProductsPage({super.key});
+  final bool showDiscountOnly;
+
+  const ProductsPage({super.key, this.showDiscountOnly = false});
 
   @override
   State<ProductsPage> createState() => _ProductsPageState();
@@ -23,6 +25,7 @@ class _ProductsPageState extends State<ProductsPage> {
   final TextEditingController _minPriceController = TextEditingController();
   final TextEditingController _maxPriceController = TextEditingController();
   String? _selectedCategory;
+  String? _discountFilter; // "all" or "discounted"
 
   // Collapse state
   bool _filtersExpanded = false;
@@ -39,11 +42,13 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void initState() {
     super.initState();
+    _discountFilter = widget.showDiscountOnly ? "discounted" : "all";
     _productsFuture = _productService.getVisibleProducts();
     _productsFuture.then((value) {
       setState(() {
         _allProducts = value;
         _filteredProducts = List.from(_allProducts);
+        _applyFilters();
       });
     });
   }
@@ -69,7 +74,17 @@ class _ProductsPageState extends State<ProductsPage> {
         bool matchesMin = minPrice == null || product.price >= minPrice;
         bool matchesMax = maxPrice == null || product.price <= maxPrice;
         bool matchesSearch = product.name.toLowerCase().contains(search);
-        return matchesCategory && matchesMin && matchesMax && matchesSearch;
+
+        bool matchesDiscount = true;
+        if (_discountFilter == "discounted") {
+          matchesDiscount = product.discount > 0;
+        }
+
+        return matchesCategory &&
+            matchesMin &&
+            matchesMax &&
+            matchesSearch &&
+            matchesDiscount;
       }).toList();
     });
   }
@@ -79,8 +94,10 @@ class _ProductsPageState extends State<ProductsPage> {
     _minPriceController.clear();
     _maxPriceController.clear();
     _selectedCategory = null;
+    _discountFilter = "all";
     setState(() {
       _filteredProducts = List.from(_allProducts);
+      _applyFilters();
     });
   }
 
@@ -89,15 +106,16 @@ class _ProductsPageState extends State<ProductsPage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text("Products",    style: TextStyle(color: Colors.white), // <-- white text
-),
-        
+        title: const Text(
+          "Products",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.indigo,
         centerTitle: true,
       ),
       body: Column(
         children: [
-          // ---------------- Search Bar ----------------
+          // ---------------- Search & Filters ----------------
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -122,8 +140,8 @@ class _ProductsPageState extends State<ProductsPage> {
                     setState(() => _filtersExpanded = !_filtersExpanded);
                   },
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Colors.indigo.shade50,
                       borderRadius: BorderRadius.circular(12),
@@ -212,6 +230,35 @@ class _ProductsPageState extends State<ProductsPage> {
                                     horizontal: 12, vertical: 0),
                               ),
                               onChanged: (_) => _applyFilters(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Discounted filter
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: DropdownButton<String>(
+                              value: _discountFilter,
+                              hint: const Text("Discount"),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: "all",
+                                  child: Text("All"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "discounted",
+                                  child: Text("Discounted"),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() => _discountFilter = value);
+                                _applyFilters();
+                              },
+                              underline: const SizedBox(),
                             ),
                           ),
                         ],
@@ -330,6 +377,7 @@ class _ProductCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Product Name
                   Text(
                     product.name,
                     style: const TextStyle(
@@ -338,35 +386,46 @@ class _ProductCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
+
+                  // Price with discount
                   Row(
                     children: [
-                      Text(
-                        "\$${product.price.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            color: Colors.indigo, fontWeight: FontWeight.bold),
-                      ),
-                      if (product.discount > 0) ...[
-                        const SizedBox(width: 6),
+                      if (product.discount > 0)
                         Text(
-                          "-\$${product.discount.toStringAsFixed(2)}",
-                          style:
-                              const TextStyle(color: Colors.red, fontSize: 13),
+                          "\$${product.price.toStringAsFixed(2)}",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                            decoration: TextDecoration.lineThrough,
+                          ),
                         ),
-                      ],
+                      if (product.discount > 0) const SizedBox(width: 6),
+                      Text(
+                        "\$${(product.price - product.discount).toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.indigo,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
+
                   const SizedBox(height: 6),
+                  // Rating
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 14),
                       const SizedBox(width: 4),
                       Text(
                         "${product.averageRating.toStringAsFixed(1)} (${product.reviewCount})",
-                        style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black87),
                       ),
                     ],
                   ),
                   const Spacer(),
+                  // Show Details Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -380,7 +439,8 @@ class _ProductCard extends StatelessWidget {
                       ),
                       child: const Text(
                         "Show Details",
-                        style: TextStyle(fontWeight: FontWeight.bold,color:Colors.white),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                     ),
                   ),

@@ -18,7 +18,7 @@ class _MainHomePageState extends State<MainHomePage> {
   late final List<Widget> pages = [
     const HomeLandingPage(), // 👈 this is the new landing page
     const Center(child: Text("🔔 Notifications", style: TextStyle(fontSize: 22))),
-    const ProductsPage(), // 👈 Products page
+    const ProductsPage(showDiscountOnly: false), // 👈 Products page
     const Center(child: Text("🛒 Cart", style: TextStyle(fontSize: 22))),
     const UserProfilePage(), // 👈 Products page
   ];

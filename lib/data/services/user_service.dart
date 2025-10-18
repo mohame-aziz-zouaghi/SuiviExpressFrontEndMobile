@@ -45,4 +45,26 @@ class UserService {
       throw Exception("Failed to update user: ${response.body}");
     }
   }
+
+  /// 🗑️ Delete user account by ID
+  Future<void> deleteUser(String userId) async {
+    final token = await TokenStorage.getToken();
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      // Success - optionally clear local storage
+      await TokenStorage.clear();
+    } else {
+      throw Exception("Failed to delete user account");
+    }
+  }
+
+
 }

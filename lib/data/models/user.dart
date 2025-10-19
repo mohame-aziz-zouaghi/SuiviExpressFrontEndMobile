@@ -10,10 +10,7 @@ class User {
   String role; // usually read-only for the user
   bool enabled; // read-only
   bool locked; // read-only
-  DateTime createdAt; // read-only
-  DateTime updatedAt; // read-only
-  DateTime? lastLogin; // read-only
-  String? deviceToken; // read-only
+// read-only
   String? password; // optional, only used for updates if user wants to change it
 
   User({
@@ -28,10 +25,6 @@ class User {
     required this.role,
     required this.enabled,
     required this.locked,
-    required this.createdAt,
-    required this.updatedAt,
-    this.lastLogin,
-    this.deviceToken,
     this.password,
   });
 
@@ -47,11 +40,6 @@ class User {
         role: json['role'],
         enabled: json['enabled'],
         locked: json['locked'],
-        createdAt: DateTime.parse(json['createdAt']),
-        updatedAt: DateTime.parse(json['updatedAt']),
-        lastLogin:
-            json['lastLogin'] != null ? DateTime.parse(json['lastLogin']) : null,
-        deviceToken: json['deviceToken'],
         password: json['password'], // optional
       );
 
@@ -67,10 +55,6 @@ class User {
         "role": role,
         "enabled": enabled,
         "locked": locked,
-        "createdAt": createdAt.toIso8601String(),
-        "updatedAt": updatedAt.toIso8601String(),
-        "lastLogin": lastLogin?.toIso8601String(),
-        "deviceToken": deviceToken,
         "password": password,
       };
 }

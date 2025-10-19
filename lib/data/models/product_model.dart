@@ -47,4 +47,20 @@ class Product {
         reviewCount: json['reviewCount'],
         visible: json['visible'],
       );
+      // ✅ To JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'price': price,
+      'discount': discount,
+      'category': category,
+      'brand': brand,
+      'stockQuantity': stockQuantity,
+      'imageUrl': imageUrl,
+      'averageRating': averageRating,
+      'reviewCount': reviewCount,
+    };
+  }
 }

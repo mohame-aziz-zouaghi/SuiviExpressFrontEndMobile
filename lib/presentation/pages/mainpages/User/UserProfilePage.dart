@@ -35,40 +35,44 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _loadUserProfile();
   }
 
-Future<void> _loadUserProfile() async {
-  try {
-    final userId = await TokenStorage.getuserId();
-    if (userId == null) throw Exception("No user ID found");
+  Future<void> _loadUserProfile() async {
+    try {
+      final userId = await TokenStorage.getuserId();
+      if (userId == null) throw Exception("No user ID found");
+      final userIdN = int.tryParse(userId);
 
-    final user = await _userService.getUserById(userId);
-    if (user == null) throw Exception("User not found");
+      final user = await _userService.getUserById(userIdN!);
+      if (user == null) throw Exception("User not found");
 
-    setState(() {
-      _user = user;
-      _usernameController = TextEditingController(text: user.username);
-      _firstNameController = TextEditingController(text: user.firstName);
-      _lastNameController = TextEditingController(text: user.lastName);
-      _emailController = TextEditingController(text: user.email);
-      _phoneController = TextEditingController(text: user.phone ?? '');
-      _addressController = TextEditingController(text: user.address ?? '');
-      _passwordController = TextEditingController();
-      _confirmPasswordController = TextEditingController();
-      _loading = false;
+      setState(() {
+        _user = user;
+        _usernameController = TextEditingController(text: user.username);
+        _firstNameController = TextEditingController(text: user.firstName);
+        _lastNameController = TextEditingController(text: user.lastName);
+        _emailController = TextEditingController(text: user.email);
+        _phoneController = TextEditingController(text: user.phone ?? '');
+        _addressController = TextEditingController(text: user.address ?? '');
+        _passwordController = TextEditingController();
+        _confirmPasswordController = TextEditingController();
+        _loading = false;
 
-      _addChangeListeners();
-    });
-  } catch (e) {
-    // Clear stored token & redirect to login
-    await TokenStorage.clear();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Session expired or user not found. Please login again.")),
-      );
+        _addChangeListeners();
+      });
+    } catch (e) {
+      // Clear stored token & redirect to login
+      await TokenStorage.clear();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Session expired or user not found. Please login again.",
+            ),
+          ),
+        );
+      }
     }
   }
-}
-
 
   void _addChangeListeners() {
     final controllers = [
@@ -127,14 +131,12 @@ Future<void> _loadUserProfile() async {
         role: _user!.role,
         enabled: _user!.enabled,
         locked: _user!.locked,
-        createdAt: _user!.createdAt,
-        updatedAt: DateTime.now(),
-        lastLogin: _user!.lastLogin,
-        deviceToken: _user!.deviceToken,
       );
 
-      final user =
-          await _userService.updateUser(_user!.id.toString(), updatedUser);
+      final user = await _userService.updateUser(
+        _user!.id.toString(),
+        updatedUser,
+      );
       setState(() {
         _user = user;
         _passwordController.clear();
@@ -146,9 +148,9 @@ Future<void> _loadUserProfile() async {
         const SnackBar(content: Text("Profile updated successfully")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to update profile: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to update profile: $e")));
     }
   }
 
@@ -204,7 +206,8 @@ Future<void> _loadUserProfile() async {
       builder: (context) => AlertDialog(
         title: const Text("Delete Account"),
         content: const Text(
-            "Are you sure you want to permanently delete your account? This action cannot be undone."),
+          "Are you sure you want to permanently delete your account? This action cannot be undone.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -230,9 +233,9 @@ Future<void> _loadUserProfile() async {
           const SnackBar(content: Text("Account deleted successfully")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete account: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to delete account: $e")));
       }
     }
   }
@@ -254,13 +257,19 @@ Future<void> _loadUserProfile() async {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Colors.indigo.shade50,
-                    backgroundImage: _user!.profileImageUrl != null &&
+                    backgroundImage:
+                        _user!.profileImageUrl != null &&
                             _user!.profileImageUrl!.isNotEmpty
                         ? NetworkImage(_user!.profileImageUrl!)
                         : null,
-                    child: _user!.profileImageUrl == null ||
+                    child:
+                        _user!.profileImageUrl == null ||
                             _user!.profileImageUrl!.isEmpty
-                        ? const Icon(Icons.person, size: 60, color: Colors.indigo)
+                        ? const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.indigo,
+                          )
                         : null,
                   ),
                   const SizedBox(height: 16),
@@ -319,8 +328,9 @@ Future<void> _loadUserProfile() async {
                             if (value == null || value.isEmpty) {
                               return "Email is required";
                             }
-                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                .hasMatch(value)) {
+                            if (!RegExp(
+                              r'^[^@]+@[^@]+\.[^@]+',
+                            ).hasMatch(value)) {
                               return "Enter a valid email";
                             }
                             return null;
@@ -403,8 +413,7 @@ Future<void> _loadUserProfile() async {
                                 onPressed: _canUpdate ? _updateProfile : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.indigo,
-                                  disabledBackgroundColor:
-                                      Colors.grey.shade400,
+                                  disabledBackgroundColor: Colors.grey.shade400,
                                 ),
                                 child: const Text("Update"),
                               ),
@@ -462,9 +471,7 @@ Future<void> _loadUserProfile() async {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         validator: validator,
       ),

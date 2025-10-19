@@ -1,19 +1,202 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:suiviexpress_app/data/models/product_model.dart';
+import 'package:suiviexpress_app/data/models/review_model.dart';
+import 'package:suiviexpress_app/data/services/review_service.dart';
+import 'package:suiviexpress_app/data/services/token_storage.dart';
+import 'package:suiviexpress_app/data/services/user_service.dart';
 import 'package:suiviexpress_app/presentation/pages/mainpages/order/OrderPage.dart';
 
-class ProductDetailsPage extends StatelessWidget {
+class ProductDetailsPage extends StatefulWidget {
   final Product product;
   const ProductDetailsPage({required this.product, super.key});
 
   @override
+  State<ProductDetailsPage> createState() => _ProductDetailsPageState();
+}
+
+class _ProductDetailsPageState extends State<ProductDetailsPage> {
+  final ReviewService _reviewService = ReviewService();
+  double _rating = 0;
+  final TextEditingController _commentController = TextEditingController();
+  List<Review> _reviews = [];
+  bool _loadingReviews = true;
+  int? _currentUserId;
+  String? _currentUsername;
+  Map<int, String> _reviewUsernames = {}; // review.userId -> username
+  Map<int, bool> _editingReview = {}; // reviewId -> isEditing
+  Map<int, TextEditingController> _updateControllers =
+      {}; // reviewId -> controller
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+    _loadReviews();
+  }
+
+  Future<void> _loadUserId() async {
+    final userIdStr = await TokenStorage.getuserId();
+    if (userIdStr != null) {
+      final id = int.tryParse(userIdStr);
+      if (id != null) {
+        setState(() {
+          _currentUserId = id;
+        });
+
+        // Load current username using UserService
+        try {
+          final user = await UserService().getUserById(id);
+          setState(() {
+            _currentUsername = user.username;
+          });
+        } catch (e) {
+          print("Failed to load current username: $e");
+        }
+      }
+    }
+  }
+
+  Future<void> _loadReviews() async {
+    setState(() => _loadingReviews = true);
+    try {
+      final reviews = await _reviewService.getReviewsByProduct(
+        widget.product.id,
+      );
+
+      // Load username for each review
+      for (var r in reviews) {
+        if (!_reviewUsernames.containsKey(r.userId)) {
+          try {
+            final user = await UserService().getUserById(r.userId);
+            _reviewUsernames[r.userId] = user.username;
+          } catch (e) {
+            _reviewUsernames[r.userId] = "User ${r.userId}";
+          }
+        }
+      }
+
+      setState(() {
+        _reviews = reviews;
+        _loadingReviews = false;
+      });
+    } catch (e) {
+      setState(() => _loadingReviews = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to load reviews: $e")));
+    }
+  }
+
+  Future<void> _submitReview() async {
+    if (_rating == 0 || _commentController.text.trim().isEmpty) return;
+    if (_currentUserId == null) return;
+
+    final review = Review(
+      rating: _rating.toInt(),
+      comment: _commentController.text.trim(),
+      productId: widget.product.id,
+      userId: _currentUserId!,
+    );
+
+    try {
+      final createdReview = await _reviewService.createReview(
+        widget.product.id,
+        _currentUserId!,
+        review,
+      );
+      _commentController.clear();
+      setState(() {
+        _rating = 0;
+      });
+      await _loadReviews(); // reload reviews to update average rating
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Review submitted successfully!")),
+      );
+    } on http.DioException catch (e) {
+      String message = "Failed to submit review";
+      if (e.response != null && e.response!.data != null) {
+        message = e.response!.data.toString();
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to submit review: $e")));
+    }
+  }
+
+  Future<void> _updateReview(Review review) async {
+    final controller = _updateControllers[review.id]!;
+    if (controller.text.trim().isEmpty) return;
+
+    final updatedReview = Review(
+      rating: review.rating,
+      comment: controller.text.trim(),
+      productId: review.productId,
+      userId: review.userId,
+    );
+
+    try {
+      await _reviewService.updateReview(
+        review.id!,
+        review.productId,
+        review.userId,
+        updatedReview,
+      );
+      setState(() => _editingReview[review.id!] = false);
+      await _loadReviews(); // reload reviews after update
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to update review: $e")));
+    }
+  }
+
+  Future<void> _deleteReview(Review review) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: const Text("Are you sure you want to delete this review?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await _reviewService.deleteReview(review.id!, review.userId);
+      await _loadReviews();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to delete review: $e")));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final product = widget.product;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text(
           "Product Details",
-          style: TextStyle(color: Colors.white), // <-- white text
+          style: TextStyle(color: Colors.white),
         ),
         backgroundColor: Colors.indigo,
         leading: IconButton(
@@ -26,7 +209,7 @@ class ProductDetailsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Main Image
+            // Product image
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
@@ -52,14 +235,11 @@ class ProductDetailsPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Product Name
             Text(
               product.name,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-
-            // Brand & Category
             Row(
               children: [
                 Chip(
@@ -74,8 +254,6 @@ class ProductDetailsPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Rating
             Row(
               children: [
                 const Icon(Icons.star, color: Colors.amber, size: 18),
@@ -87,8 +265,6 @@ class ProductDetailsPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Price & Discount
             Row(
               children: [
                 if (product.discount > 0)
@@ -112,8 +288,6 @@ class ProductDetailsPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Stock
             Text(
               product.stockQuantity > 0
                   ? "In Stock: ${product.stockQuantity}"
@@ -124,8 +298,6 @@ class ProductDetailsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Description
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -153,12 +325,309 @@ class ProductDetailsPage extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 80), // extra space for bottom button
+            const SizedBox(height: 24),
+
+            const Text(
+              "Customer Reviews",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _loadingReviews
+                ? const Center(child: CircularProgressIndicator())
+                : _reviews.isEmpty
+                ? const Text("No reviews yet")
+                : SizedBox(
+                    height: 300, // fixed height for scrollable reviews
+                    child: ListView.builder(
+                      itemCount: _reviews.length,
+                      itemBuilder: (context, index) {
+                        final r = _reviews[index];
+                        _updateControllers[r.id!] ??= TextEditingController(
+                          text: r.comment,
+                        );
+                        final isEditing = _editingReview[r.id!] ?? false;
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          elevation: 1,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.indigo.shade100,
+                              child: const Icon(
+                                Icons.person,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                            title: Text(
+                              _reviewUsernames[r.userId] ?? "User ${r.userId}",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: List.generate(
+                                    5,
+                                    (i) => Icon(
+                                      i < r.rating
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: Colors.amber,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                isEditing
+                                    ? Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const SizedBox(height: 8),
+                                          const Text(
+                                            "Update Rating",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                              color: Colors.indigo,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+
+                                          // ⭐ Editable rating stars
+                                          Row(
+                                            children: List.generate(
+                                              5,
+                                              (index) => GestureDetector(
+                                                onTap: () {
+                                                  setState(() {
+                                                    final updated = Review(
+                                                      id: r.id,
+                                                      rating: index + 1,
+                                                      comment: r.comment,
+                                                      productId: r.productId,
+                                                      userId: r.userId,
+                                                      createdAt: r.createdAt,
+                                                    );
+                                                    final reviewIndex = _reviews
+                                                        .indexWhere(
+                                                          (rev) =>
+                                                              rev.id == r.id,
+                                                        );
+                                                    if (reviewIndex != -1)
+                                                      _reviews[reviewIndex] =
+                                                          updated;
+                                                  });
+                                                },
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 2.0,
+                                                      ),
+                                                  child: Icon(
+                                                    index < r.rating
+                                                        ? Icons.star
+                                                        : Icons.star_border,
+                                                    color: Colors.amber,
+                                                    size: 24,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller:
+                                                _updateControllers[r.id!],
+                                            decoration: InputDecoration(
+                                              hintText:
+                                                  "Update your comment...",
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                            ),
+                                            maxLines: 2,
+                                          ),
+                                          const SizedBox(height: 8),
+
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              ElevatedButton.icon(
+                                                onPressed: () =>
+                                                    _updateReview(r),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.indigo,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 8,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 18,
+                                                ),
+                                                label: const Text(
+                                                  "Update",
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              ElevatedButton.icon(
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _editingReview[r.id!] =
+                                                        false;
+                                                    _updateControllers[r.id!]!
+                                                            .text =
+                                                        r.comment;
+                                                  });
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      const Color.fromARGB(
+                                                        255,
+                                                        212,
+                                                        209,
+                                                        209,
+                                                      ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 8,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.close,
+                                                  color: Colors.black54,
+                                                  size: 18,
+                                                ),
+                                                label: const Text("Cancel"),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      )
+                                    : Text(r.comment),
+
+                                const SizedBox(height: 4),
+                                Text(
+                                  r.createdAt != null
+                                      ? r.createdAt.toString().split(' ')[0]
+                                      : '',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            trailing:
+                                _currentUserId != null &&
+                                    _currentUserId == r.userId
+                                ? PopupMenuButton(
+                                    icon: const Icon(Icons.more_horiz),
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'update',
+                                        child: Text('Update'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    ],
+                                    onSelected: (value) {
+                                      if (value == 'update') {
+                                        setState(
+                                          () => _editingReview[r.id!] =
+                                              !isEditing,
+                                        );
+                                      } else if (value == 'delete') {
+                                        _deleteReview(r);
+                                      }
+                                    },
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+            const Divider(height: 24),
+            const Text(
+              "Write a Review",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: List.generate(
+                5,
+                (index) => IconButton(
+                  icon: Icon(
+                    index < _rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                  ),
+                  onPressed: () => setState(() => _rating = index + 1.0),
+                ),
+              ),
+            ),
+            TextField(
+              controller: _commentController,
+              decoration: InputDecoration(
+                hintText: "Write your comment...",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.send, color: Colors.white),
+                label: const Text(
+                  "Submit Review",
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                onPressed: _submitReview,
+              ),
+            ),
+            const SizedBox(height: 80),
           ],
         ),
       ),
-
-      // Add to Cart Button fixed at bottom
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton(

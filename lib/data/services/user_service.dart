@@ -8,7 +8,7 @@ class UserService {
   final String baseUrl = "${ApiConfig.baseUrl}/users";
 
   // ✅ Get single user by ID
-  Future<User> getUserById(String id) async {
+  Future<User> getUserById(int id) async {
     final token = await TokenStorage.getToken();
     final response = await http.get(
       Uri.parse("$baseUrl/$id"),

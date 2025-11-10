@@ -7,6 +7,7 @@ import 'package:suiviexpress_app/data/models/review_model.dart';
 import 'package:suiviexpress_app/data/services/review_service.dart';
 import 'package:suiviexpress_app/data/services/token_storage.dart';
 import 'package:suiviexpress_app/data/services/user_service.dart';
+import 'package:suiviexpress_app/database/database_helper.dart';
 import 'package:suiviexpress_app/presentation/pages/mainpages/order/OrderPage.dart';
 
 class ProductDetailsPage extends StatefulWidget {
@@ -63,7 +64,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     setState(() => _loadingReviews = true);
     try {
       final reviews = await _reviewService.getReviewsByProduct(
-        widget.product.id,
+        widget.product.id!,
       );
 
       // Load username for each review
@@ -90,45 +91,48 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     }
   }
 
-  Future<void> _submitReview() async {
-    if (_rating == 0 || _commentController.text.trim().isEmpty) return;
-    if (_currentUserId == null) return;
+Future<void> _submitReview() async {
+  if (_rating == 0 || _commentController.text.trim().isEmpty) return;
+  if (_currentUserId == null) return;
 
-    final review = Review(
-      rating: _rating.toInt(),
-      comment: _commentController.text.trim(),
-      productId: widget.product.id,
-      userId: _currentUserId!,
+  final review = Review(
+    rating: _rating.toInt(),
+    comment: _commentController.text.trim(),
+    productId: widget.product.id!,
+    userId: _currentUserId!,
+  );
+
+  try {
+    // Try online submission
+    final createdReview = await _reviewService.createReview(
+      widget.product.id!,
+      _currentUserId!,
+      review,
     );
 
-    try {
-      final createdReview = await _reviewService.createReview(
-        widget.product.id,
-        _currentUserId!,
-        review,
-      );
-      _commentController.clear();
-      setState(() {
-        _rating = 0;
-      });
-      await _loadReviews(); // reload reviews to update average rating
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Review submitted successfully!")),
-      );
-    } on http.DioException catch (e) {
-      String message = "Failed to submit review";
-      if (e.response != null && e.response!.data != null) {
-        message = e.response!.data.toString();
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to submit review: $e")));
-    }
+    // Online success → update local DB (mark as synced)
+    await DatabaseHelper().insertReview(createdReview);
+    await DatabaseHelper().markReviewAsSynced(createdReview.id!);
+
+    _commentController.clear();
+    setState(() => _rating = 0);
+    await _loadReviews();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("✅ Review submitted successfully!")),
+    );
+  } catch (e) {
+    // Offline or API error → store review locally
+    await DatabaseHelper().insertReview(review);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("⚠️ Offline: Review saved locally. Will sync later."),
+      ),
+    );
   }
+}
+
 
   Future<void> _updateReview(Review review) async {
     final controller = _updateControllers[review.id]!;

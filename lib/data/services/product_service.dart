@@ -28,4 +28,31 @@ class ProductService {
       throw Exception("Failed to load products: ${response.body}");
     }
   }
+
+
+   Future<Product> createProduct(Product product) async {
+    final token = await TokenStorage.getToken();
+
+    final headers = {
+      "Content-Type": "application/json",
+      if (token != null) "Authorization": "Bearer $token",
+    };
+
+    final url = Uri.parse(baseUrl);
+
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: jsonEncode(product.toJson()),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return Product.fromJson(data);
+    } else {
+      throw Exception("Failed to create product: ${response.body}");
+    }
+  }
 }
+
+

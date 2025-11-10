@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:suiviexpress_app/data/models/product_model.dart';
 import 'package:suiviexpress_app/data/services/product_service.dart';
+import 'package:suiviexpress_app/data/services/token_storage.dart';
 import 'package:suiviexpress_app/presentation/pages/mainpages/product/PoductDetailsPage.dart';
+import 'package:suiviexpress_app/presentation/pages/mainpages/product/CreateProductPage.dart'; // adjust if path is different
 
 class ProductsPage extends StatefulWidget {
   final bool showDiscountOnly;
@@ -17,6 +19,7 @@ class _ProductsPageState extends State<ProductsPage> {
   late Future<List<Product>> _productsFuture;
   List<Product> _allProducts = [];
   List<Product> _filteredProducts = [];
+  String? _userRole;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -42,7 +45,10 @@ class _ProductsPageState extends State<ProductsPage> {
   @override
   void initState() {
     super.initState();
+
     _discountFilter = widget.showDiscountOnly ? "discounted" : "all";
+
+    // Load products
     _productsFuture = _productService.getVisibleProducts();
     _productsFuture.then((value) {
       setState(() {
@@ -50,6 +56,16 @@ class _ProductsPageState extends State<ProductsPage> {
         _filteredProducts = List.from(_allProducts);
         _applyFilters();
       });
+    });
+
+    // Load user role
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    final role = await TokenStorage.getRole(); // returns 'ADMIN' or 'USER'
+    setState(() {
+      _userRole = role;
     });
   }
 
@@ -113,6 +129,28 @@ class _ProductsPageState extends State<ProductsPage> {
         backgroundColor: Colors.indigo,
         centerTitle: true,
       ),
+      floatingActionButton: _userRole == 'ROLE_ADMIN'
+          ? FloatingActionButton(
+              onPressed: () async {
+                // Navigate to Create Product page
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CreateProductPage()),
+                );
+                // Reload products after creation
+                _productsFuture = _productService.getVisibleProducts();
+                _productsFuture.then((value) {
+                  setState(() {
+                    _allProducts = value;
+                    _filteredProducts = List.from(_allProducts);
+                    _applyFilters();
+                  });
+                });
+              },
+              backgroundColor: Colors.indigo,
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: Column(
         children: [
           // ---------------- Search & Filters ----------------

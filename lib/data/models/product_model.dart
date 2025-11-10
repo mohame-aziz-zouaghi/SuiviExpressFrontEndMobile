@@ -1,5 +1,5 @@
 class Product {
-  final int id;
+  final int? id;
   final String name;
   final String description;
   final String brand;
@@ -15,7 +15,7 @@ class Product {
   final bool visible;
 
   Product({
-    required this.id,
+     this.id,
     required this.name,
     required this.description,
     required this.brand,
@@ -59,8 +59,10 @@ class Product {
       'brand': brand,
       'stockQuantity': stockQuantity,
       'imageUrl': imageUrl,
+      'thumbnailUrl': thumbnailUrl,
       'averageRating': averageRating,
       'reviewCount': reviewCount,
+      'visible':visible,
     };
   }
 }

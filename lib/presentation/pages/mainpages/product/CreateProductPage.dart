@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:suiviexpress_app/data/models/product_model.dart';
 import 'package:suiviexpress_app/data/services/product_service.dart';
+import 'package:suiviexpress_app/database/database_helper.dart';
 
 class CreateProductPage extends StatefulWidget {
   const CreateProductPage({super.key});
@@ -56,43 +57,53 @@ class _CreateProductPageState extends State<CreateProductPage> {
     super.dispose();
   }
 
-  Future<void> _submitProduct() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _submitProduct() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSubmitting = true);
+  setState(() => _isSubmitting = true);
 
-    try {
-      final newProduct = Product(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        brand: _brandController.text.trim(),
-        category: _categoryController.text.trim(),
-        price: double.tryParse(_priceController.text.trim()) ?? 0,
-        discount: double.tryParse(_discountController.text.trim()) ?? 0,
-        stockQuantity: int.tryParse(_stockController.text.trim()) ?? 0,
-        available: _available,
-        imageUrl: _imageUrlController.text.trim(),
-        thumbnailUrl: _thumbnailUrlController.text.trim(),
-        averageRating: 0,
-        reviewCount: 0,
-        visible: _visible,
-      );
+  // Create product object
+  final newProduct = Product(
+    name: _nameController.text.trim(),
+    description: _descriptionController.text.trim(),
+    brand: _brandController.text.trim(),
+    category: _categoryController.text.trim(),
+    price: double.tryParse(_priceController.text.trim()) ?? 0,
+    discount: double.tryParse(_discountController.text.trim()) ?? 0,
+    stockQuantity: int.tryParse(_stockController.text.trim()) ?? 0,
+    available: _available,
+    imageUrl: _imageUrlController.text.trim(),
+    thumbnailUrl: _thumbnailUrlController.text.trim(),
+    averageRating: 0,
+    reviewCount: 0,
+    visible: _visible,
+    synced: false, // mark as unsynced initially
+  );
 
-      await _productService.createProduct(newProduct);
+  try {
+    // Try to create online
+    await _productService.createProduct(newProduct);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Product created successfully!")),
-      );
+    // If successful, mark as synced and optionally store locally too
+    newProduct.synced = true;
+    await DatabaseHelper().insertProduct(newProduct);
 
-      Navigator.pop(context); // go back to products page
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to create product: $e")),
-      );
-    } finally {
-      setState(() => _isSubmitting = false);
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Product created successfully online!")),
+    );
+  } catch (e) {
+    // Network error / offline -> store locally
+    await DatabaseHelper().insertProduct(newProduct);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("No connection. Product saved locally.")),
+    );
+  } finally {
+    setState(() => _isSubmitting = false);
+    Navigator.pop(context); // go back to products page
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

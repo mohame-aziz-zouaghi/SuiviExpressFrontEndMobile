@@ -35,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
     final userId = decodedToken['userId']?.toString() ?? '';
     final username = decodedToken['sub'] ?? '';
     final role = decodedToken['role'] ?? '';
-    print( "userId :" + userId +"\n" + " " + "username :" + username + "\n" + " " + "role :" +role  );
+    print( "userId :" + userId +"\n" + " " + "username :" + username + "\n" + " " + "role :" +role  + rememberMe.toString());
 
     // ✅ Store token and decoded info
     await TokenStorage.saveAuthData(token, username, role, userId);

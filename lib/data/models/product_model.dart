@@ -13,9 +13,10 @@ class Product {
   final double averageRating;
   final int reviewCount;
   final bool visible;
+  bool synced;
 
   Product({
-     this.id,
+    this.id,
     required this.name,
     required this.description,
     required this.brand,
@@ -29,25 +30,26 @@ class Product {
     required this.averageRating,
     required this.reviewCount,
     required this.visible,
+    this.synced = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
-        id: json['id'],
-        name: json['name'],
-        description: json['description'],
-        brand: json['brand'],
-        category: json['category'],
-        price: (json['price'] as num).toDouble(),
-        discount: (json['discount'] as num).toDouble(),
-        stockQuantity: json['stockQuantity'],
-        available: json['available'],
-        imageUrl: json['imageUrl'],
-        thumbnailUrl: json['thumbnailUrl'],
-        averageRating: (json['averageRating'] as num).toDouble(),
-        reviewCount: json['reviewCount'],
-        visible: json['visible'],
-      );
-      // ✅ To JSON
+    id: json['id'],
+    name: json['name'],
+    description: json['description'],
+    brand: json['brand'],
+    category: json['category'],
+    price: (json['price'] as num).toDouble(),
+    discount: (json['discount'] as num).toDouble(),
+    stockQuantity: json['stockQuantity'],
+    available: json['available'],
+    imageUrl: json['imageUrl'],
+    thumbnailUrl: json['thumbnailUrl'],
+    averageRating: (json['averageRating'] as num).toDouble(),
+    reviewCount: json['reviewCount'],
+    visible: json['visible'],
+  );
+  // ✅ To JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -62,7 +64,8 @@ class Product {
       'thumbnailUrl': thumbnailUrl,
       'averageRating': averageRating,
       'reviewCount': reviewCount,
-      'visible':visible,
+      'visible': visible,
+      'synced': synced,
     };
   }
 }

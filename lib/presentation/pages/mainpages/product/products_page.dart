@@ -3,7 +3,10 @@ import 'package:suiviexpress_app/data/models/product_model.dart';
 import 'package:suiviexpress_app/data/services/product_service.dart';
 import 'package:suiviexpress_app/data/services/token_storage.dart';
 import 'package:suiviexpress_app/presentation/pages/mainpages/product/PoductDetailsPage.dart';
-import 'package:suiviexpress_app/presentation/pages/mainpages/product/CreateProductPage.dart'; // adjust if path is different
+import 'package:suiviexpress_app/presentation/pages/mainpages/product/CreateProductPage.dart';
+import 'package:suiviexpress_app/database/database_helper.dart';
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ProductsPage extends StatefulWidget {
   final bool showDiscountOnly;
@@ -33,40 +36,60 @@ class _ProductsPageState extends State<ProductsPage> {
   // Collapse state
   bool _filtersExpanded = false;
 
-  // Example categories
+  // Categories
   final List<String> _categories = [
     'ELECTRONICS',
-    'FASHION',
+    'CLOTHING',
+    'FOOD',
+    'BEAUTY',
     'HOME',
+    'SPORTS',
     'TOYS',
-    'SPORTS'
+    'AUTOMOTIVE',
+    'BOOKS',
+    'PETS',
+    'OFFICE'
   ];
+
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
+  bool _isConnected = true;
 
   @override
   void initState() {
     super.initState();
-
     _discountFilter = widget.showDiscountOnly ? "discounted" : "all";
 
-    // Load products
-    _productsFuture = _productService.getVisibleProducts();
-    _productsFuture.then((value) {
-      setState(() {
-        _allProducts = value;
-        _filteredProducts = List.from(_allProducts);
-        _applyFilters();
-      });
-    });
-
-    // Load user role
     _loadUserRole();
+    _reloadProducts(); // initial load
   }
 
   Future<void> _loadUserRole() async {
-    final role = await TokenStorage.getRole(); // returns 'ADMIN' or 'USER'
+    final role = await TokenStorage.getRole(); // returns 'ROLE_ADMIN' or 'ROLE_USER'
     setState(() {
       _userRole = role;
     });
+  }
+
+
+
+  Future<void> _reloadProducts() async {
+    List<Product> localUnsynced = await DatabaseHelper().getUnsyncedProducts();
+
+    try {
+      List<Product> onlineProducts = await _productService.getVisibleProducts();
+      setState(() {
+        _allProducts = [...onlineProducts, ...localUnsynced];
+        _filteredProducts = List.from(_allProducts);
+        _applyFilters();
+      });
+    } catch (_) {
+      // offline mode: show only local products
+      setState(() {
+        _allProducts = localUnsynced;
+        _filteredProducts = List.from(_allProducts);
+        _applyFilters();
+      });
+    }
   }
 
   @override
@@ -75,6 +98,7 @@ class _ProductsPageState extends State<ProductsPage> {
     _searchController.dispose();
     _minPriceController.dispose();
     _maxPriceController.dispose();
+    _connectivitySubscription.cancel();
     super.dispose();
   }
 
@@ -132,23 +156,14 @@ class _ProductsPageState extends State<ProductsPage> {
       floatingActionButton: _userRole == 'ROLE_ADMIN'
           ? FloatingActionButton(
               onPressed: () async {
-                // Navigate to Create Product page
                 await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => CreateProductPage()),
                 );
-                // Reload products after creation
-                _productsFuture = _productService.getVisibleProducts();
-                _productsFuture.then((value) {
-                  setState(() {
-                    _allProducts = value;
-                    _filteredProducts = List.from(_allProducts);
-                    _applyFilters();
-                  });
-                });
+                await _reloadProducts();
               },
               backgroundColor: Colors.indigo,
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
       body: Column(
@@ -172,7 +187,6 @@ class _ProductsPageState extends State<ProductsPage> {
                 ),
                 const SizedBox(height: 8),
 
-                // Collapsible Filter Header
                 GestureDetector(
                   onTap: () {
                     setState(() => _filtersExpanded = !_filtersExpanded);
@@ -203,14 +217,12 @@ class _ProductsPageState extends State<ProductsPage> {
                   ),
                 ),
 
-                // ---------------- Collapsible Filter Panel ----------------
                 if (_filtersExpanded) ...[
                   const SizedBox(height: 8),
                   Column(
                     children: [
                       Row(
                         children: [
-                          // Category Dropdown
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               value: _selectedCategory,
@@ -235,8 +247,6 @@ class _ProductsPageState extends State<ProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
-
-                          // Min Price
                           Expanded(
                             child: TextField(
                               controller: _minPriceController,
@@ -253,8 +263,6 @@ class _ProductsPageState extends State<ProductsPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
-
-                          // Max Price
                           Expanded(
                             child: TextField(
                               controller: _maxPriceController,
@@ -268,35 +276,6 @@ class _ProductsPageState extends State<ProductsPage> {
                                     horizontal: 12, vertical: 0),
                               ),
                               onChanged: (_) => _applyFilters(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Discounted filter
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: DropdownButton<String>(
-                              value: _discountFilter,
-                              hint: const Text("Discount"),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: "all",
-                                  child: Text("All"),
-                                ),
-                                DropdownMenuItem(
-                                  value: "discounted",
-                                  child: Text("Discounted"),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() => _discountFilter = value);
-                                _applyFilters();
-                              },
-                              underline: const SizedBox(),
                             ),
                           ),
                         ],
@@ -415,7 +394,6 @@ class _ProductCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product Name
                   Text(
                     product.name,
                     style: const TextStyle(
@@ -424,8 +402,6 @@ class _ProductCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
-
-                  // Price with discount
                   Row(
                     children: [
                       if (product.discount > 0)
@@ -448,9 +424,7 @@ class _ProductCard extends StatelessWidget {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 6),
-                  // Rating
                   Row(
                     children: [
                       const Icon(Icons.star, color: Colors.amber, size: 14),
@@ -463,7 +437,6 @@ class _ProductCard extends StatelessWidget {
                     ],
                   ),
                   const Spacer(),
-                  // Show Details Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

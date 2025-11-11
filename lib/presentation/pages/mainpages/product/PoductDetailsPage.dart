@@ -62,33 +62,48 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 
   Future<void> _loadReviews() async {
     setState(() => _loadingReviews = true);
+
+    List<Review> reviews = [];
+
     try {
-      final reviews = await _reviewService.getReviewsByProduct(
+      // 1️⃣ Load online reviews
+      final onlineReviews = await _reviewService.getReviewsByProduct(
         widget.product.id!,
       );
+      reviews.addAll(onlineReviews);
+    } catch (e) {
+      // Optional: show a message but still try to load local reviews
+      print("Failed to load online reviews: $e");
+    }
 
-      // Load username for each review
-      for (var r in reviews) {
-        if (!_reviewUsernames.containsKey(r.userId)) {
-          try {
-            final user = await UserService().getUserById(r.userId);
-            _reviewUsernames[r.userId] = user.username;
-          } catch (e) {
-            _reviewUsernames[r.userId] = "User ${r.userId}";
-          }
+    try {
+      // 2️⃣ Load unsynced local reviews for this product
+      final localReviews = await DatabaseHelper().getUnsyncedReviews();
+      final productLocalReviews = localReviews
+          .where((r) => r.productId == widget.product.id)
+          .toList();
+      reviews.addAll(productLocalReviews);
+    } catch (e) {
+      print("Failed to load local reviews: $e");
+    }
+
+    // 3️⃣ Load username for each review
+    for (var r in reviews) {
+      if (!_reviewUsernames.containsKey(r.userId)) {
+        try {
+          final user = await UserService().getUserById(r.userId);
+          _reviewUsernames[r.userId] = user.username;
+        } catch (e) {
+          _reviewUsernames[r.userId] = "User ${r.userId}";
         }
       }
-
-      setState(() {
-        _reviews = reviews;
-        _loadingReviews = false;
-      });
-    } catch (e) {
-      setState(() => _loadingReviews = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to load reviews: $e")));
     }
+
+    // 4️⃣ Update state
+    setState(() {
+      _reviews = reviews;
+      _loadingReviews = false;
+    });
   }
 
 Future<void> _submitReview() async {
@@ -114,10 +129,6 @@ Future<void> _submitReview() async {
     await DatabaseHelper().insertReview(createdReview);
     await DatabaseHelper().markReviewAsSynced(createdReview.id!);
 
-    _commentController.clear();
-    setState(() => _rating = 0);
-    await _loadReviews();
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("✅ Review submitted successfully!")),
     );
@@ -130,6 +141,11 @@ Future<void> _submitReview() async {
         content: Text("⚠️ Offline: Review saved locally. Will sync later."),
       ),
     );
+  } finally {
+    // Always reload reviews from local DB (includes offline ones)
+    _commentController.clear();
+    setState(() => _rating = 0);
+    await _loadReviews(); // reload local + synced reviews
   }
 }
 
@@ -139,26 +155,36 @@ Future<void> _submitReview() async {
     if (controller.text.trim().isEmpty) return;
 
     final updatedReview = Review(
+      id: review.id,
       rating: review.rating,
       comment: controller.text.trim(),
       productId: review.productId,
       userId: review.userId,
+      createdAt: review.createdAt,
     );
 
     try {
+      // Try online update
       await _reviewService.updateReview(
         review.id!,
         review.productId,
         review.userId,
         updatedReview,
       );
-      setState(() => _editingReview[review.id!] = false);
-      await _loadReviews(); // reload reviews after update
+
+      // If online succeeds, update local DB and mark as synced
+      await DatabaseHelper().updateReview(updatedReview);
+      await DatabaseHelper().markReviewAsSynced(review.id!);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to update review: $e")));
+      // Offline or API failure → update locally only, mark as unsynced
+      await DatabaseHelper().updateReview(updatedReview);
+      // Not marking as synced because it's offline
     }
+
+    // Update UI
+    final index = _reviews.indexWhere((r) => r.id == review.id);
+    if (index != -1) _reviews[index] = updatedReview;
+    setState(() => _editingReview[review.id!] = false);
   }
 
   Future<void> _deleteReview(Review review) async {
@@ -182,13 +208,19 @@ Future<void> _submitReview() async {
     if (confirm != true) return;
 
     try {
+      // Try online deletion
       await _reviewService.deleteReview(review.id!, review.userId);
-      await _loadReviews();
+
+      // If online succeeds → delete from local DB
+      await DatabaseHelper().deleteReview(review.id!);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Failed to delete review: $e")));
+      // Offline → delete locally only
+      await DatabaseHelper().deleteReview(review.id!);
     }
+
+    // Remove from UI
+    _reviews.removeWhere((r) => r.id == review.id);
+    setState(() {});
   }
 
   @override
